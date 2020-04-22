@@ -20,7 +20,7 @@ public class SSCPProtocol
     public static enum Version
     {
         SSCP1("RSA", "ECB/PKCS1Padding", 1024, 1024/8-11),
-        SSCP2("AES", "ECB/PKCS5Padding", 256, 8192);
+        SSCP2("AES", "ECB/PKCS5Padding", 128, 2048);
         
         public static final int LENGTH = values().length;
         

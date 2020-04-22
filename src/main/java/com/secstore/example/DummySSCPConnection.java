@@ -17,7 +17,7 @@ import com.secstore.sscp.SSCPProtocol.Version;
 
 public class DummySSCPConnection extends SSCPConnection
 {
-    private static final String FILE_NAME = "1000.txt";
+    private static final String FILE_NAME = "100000.txt";
     private static final String FILE_LOCATION = "src/main/resources";
     private static final String RESULT_LOCATION = "src/main/results";
     
@@ -39,20 +39,50 @@ public class DummySSCPConnection extends SSCPConnection
         throws IOException
     {
         String host = "localhost";
+        
         int port = 50000;
         
-        SSCPConnection server = new DummySSCPConnection(host, port, Type.SERVER);
-        SSCPConnection client = new DummySSCPConnection(host, port, Type.CLIENT);
+        Version version = Version.SSCP2;
         
-        File readFile = new File(FILE_LOCATION, FILE_NAME);
-        log("Server writing file: " + readFile);
-        server.setVersion(Version.SSCP2);
-        server.writeFromFile(readFile);
         
-        File writeFile = new File(RESULT_LOCATION, FILE_NAME);
-        log("Client reading into file: " + writeFile);
-        client.setVersion(Version.SSCP2);
-        client.readIntoFile(writeFile);
+        DummySSCPConnection server = new DummySSCPConnection(host, port, Type.SERVER);
+        
+        DummySSCPConnection client = new DummySSCPConnection(host, port, Type.CLIENT);
+        
+        server.setVersion(version);
+        
+        client.setVersion(version);
+        
+        server.start(server.new Runner() {
+            @Override
+            public void run()
+            {
+                File readFile = new File(FILE_LOCATION, FILE_NAME);
+                
+                log("Server reading from file: " + readFile);
+                
+                try {
+                    server.writeFromFile(readFile);
+                }
+                
+                catch (IOException exception) { }
+            }
+        });
+        
+        client.start(client.new Runner() {
+            @Override
+            public void run()
+            {
+                File writeFile = new File(RESULT_LOCATION, FILE_NAME);
+                
+                log("Client reading into file: " + writeFile);
+                try {
+                    client.readIntoFile(writeFile);
+                }
+                
+                catch (IOException exception) { }
+            }
+        });
     }
     
     public DummySSCPConnection(String host, int port, Type type)
@@ -117,9 +147,16 @@ public class DummySSCPConnection extends SSCPConnection
         }
     }
     
+    public void start(Runner runner)
+    {
+        new Thread(runner).start();
+    }
+    
     public static enum Type
     {
         CLIENT,
         SERVER
     }
+    
+    public abstract class Runner implements Runnable { }
 }
