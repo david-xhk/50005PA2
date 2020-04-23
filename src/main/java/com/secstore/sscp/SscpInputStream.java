@@ -1,0 +1,260 @@
+package com.secstore.sscp;
+
+import static com.secstore.Logger.log;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.Key;
+import javax.crypto.Cipher;
+import com.secstore.utils.CryptoUtils;
+
+
+public class SscpInputStream extends InputStream
+{
+    private SscpConnection connection;
+    private final InputStream inputStream;
+    private SscpProtocol protocol;
+    private Key key;
+    private Cipher cipher;
+    private boolean EOT;
+    private byte[] buffer;
+    private int ptr;
+    private int bytesLeft;
+    private boolean open;
+    private int ctr = 1;
+    
+    public SscpInputStream(SscpConnection connection)
+        throws IOException
+    {
+        this.connection = connection;
+        
+        this.inputStream = connection.getSocket().getInputStream();
+        
+        EOT = false;
+        
+        buffer = new byte[0];
+        
+        ptr = 0;
+        
+        bytesLeft = 0;
+        
+        open = true;
+    }
+    
+    public SscpProtocol getProtocol()
+    {
+        return protocol;
+    }
+    
+    public void setProtocol(SscpProtocol protocol)
+    {
+        this.protocol = protocol;
+    }
+    
+    @Override
+    public int read()
+        throws IOException
+    {
+        byte[] buffer = new byte[1];
+        
+        if (read(buffer, 0, 1) == -1)
+            return -1;
+        
+        else
+            return buffer[0];
+    }
+    
+    @Override
+    public int read(byte[] buffer, int offset, int length)
+        throws IOException
+    {
+        ensureOpen();
+        
+        if (length == 0)
+            return 0;
+        
+        if (atEOT())
+            return -1;
+        
+        // if buffer consumed
+        if (bytesLeft == 0) {
+            
+            consumePacket();
+            
+            if (atEOT())
+                return -1;
+        }
+        
+        // skip buffer
+        while (true) {
+            if (offset >= bytesLeft) {
+                offset -= bytesLeft;
+                
+                consumePacket();
+                
+                if (atEOT())
+                    return -1;
+            }
+            
+            else {
+                ptr += offset;
+                
+                bytesLeft -= offset;
+                
+                break;
+            }
+        }
+        
+        int bytesRead = 0;
+        
+        int bytesToRead = 0;
+        
+        boolean lastPacket;
+        
+        while (true) {
+            lastPacket = (length < bytesLeft);
+            
+            bytesToRead = lastPacket ? length : bytesLeft;
+            
+            for (int i = 0; i < bytesToRead; i++)
+                buffer[bytesRead++] = this.buffer[ptr++];
+            
+            bytesLeft -= bytesToRead;
+            
+            if (!lastPacket) {
+                length -= bytesToRead;
+                
+                consumePacket();
+                
+                if (!EOT)
+                    continue;
+            }
+            
+            break;
+        }
+        
+        return bytesRead;
+    }
+    
+    private final void consumePacket()
+        throws IOException
+    {
+        switch (protocol) {
+            case SSCP1:
+            case SSCP2:
+                int firstByte = inputStream.read();
+                
+                // version is the first bit of the first byte
+                SscpProtocol protocol = ((firstByte & 0x80) == 0) ? SscpProtocol.SSCP1 : SscpProtocol.SSCP2;
+                
+                if (this.protocol != protocol)
+                    setProtocol(protocol);
+                
+                // EOT is the second bit of the first byte
+                EOT = (((firstByte & 0x40) >> 6) == 1);
+                
+                // packet size is the last 14 bits of the first two bytes
+                int packetSize = (((firstByte & 0x3f) << 8) | inputStream.read());
+                
+                byte[] bytes = new byte[packetSize];
+                
+                int bytesRead = 0;
+                
+                while (bytesRead < packetSize)
+                    bytesRead += inputStream.read(bytes, bytesRead, packetSize - bytesRead);
+                
+                buffer = decryptBytes(bytes);
+                
+                logPacket(packetSize, bytes);
+                
+                break;
+            
+            case DEFAULT:
+            default:
+                if (EOT = (inputStream.read() == SscpProtocol.EOT_BYTE))
+                    return;
+                
+                packetSize = (int) (
+                    (inputStream.read() << 24) |
+                    (inputStream.read() << 16) |
+                    (inputStream.read() << 8)  |
+                    (inputStream.read())
+                );
+                
+                buffer = new byte[packetSize];
+                
+                bytesRead = 0;
+                
+                while (bytesRead < packetSize)
+                    bytesRead += inputStream.read(buffer, bytesRead, packetSize - bytesRead);
+        }
+        
+        bytesLeft = buffer.length;
+        
+        ptr = 0;
+    }
+    
+    
+    private final void logPacket(int packetSize, byte[] bytes)
+    {
+        log("[READ] Packet " + (ctr++) + " (protocol=" + protocol + ", EOT=" + EOT +
+            ", packetSize=" + packetSize + ", data=" + CryptoUtils.base64Encode(bytes) + ")");
+    }
+    
+    private final void initializeCipher()
+    {
+        key = connection.getKey(protocol);
+        
+        cipher = connection.getCipher(protocol);
+        
+        CryptoUtils.initializeCipher(cipher, Cipher.DECRYPT_MODE, key);
+    }
+    
+    private final byte[] decryptBytes(byte[] bytes)
+    {
+        initializeCipher();
+        
+        return CryptoUtils.decryptBytes(cipher, bytes);
+    }
+    
+    @Override
+    public void close()
+        throws IOException
+    {
+        inputStream.close();
+        
+        open = false;
+    }
+    
+    @Override
+    public int available()
+    {
+        if (!open)
+            return -1;
+        
+        return bytesLeft;
+    }
+    
+    private final void ensureOpen()
+        throws IOException
+    {
+        if (!open)
+            throw new IOException("Stream closed");
+    }
+    
+    private final boolean atEOT()
+    {
+        if (EOT) {
+            EOT = false;
+            
+            bytesLeft = 0;
+            
+            ptr = buffer.length;
+            
+            ctr = 1;
+            
+            return true;
+        }
+        
+        return false;
+    }
+}
