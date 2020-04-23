@@ -10,7 +10,12 @@ The three features of `SecStore` are:
   
   2. **Confidentiality** of upload/download data using the *SecStore Data Confidentiality Protocol* (**SSCP1** or **SSCP2**)
   
-  3. **Complete** transfer of data using the *SecStore Data Transfer Protocol* (**SSTP**)
+  3. **Complete** transfer of data using the *SecStore Data Transfer Protocol* (**SSTP**) (Not implemented)
+
+## Demo
+
+Please import the code into a suitable IDE and run `com.secstore.example.DummySsap2Connection`. More instructions are provided within.
+
 
 
 

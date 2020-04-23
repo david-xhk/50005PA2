@@ -7,13 +7,48 @@ import com.secstore.ssap.SsapProtocol.SsapProtocolException;
 import com.secstore.sscp.SscpProtocol;
 
 
+/*
+ * This class implements authentication protocol SSAP/1.0.
+ * 
+ * SSCP/2.0 is NOT supported.
+ */
 public class DummySsap1Connection extends DummySscpConnection
 {
+    /* Uncomment the file(s) you want to see transferred
+     *
+     * More files can be added here by saving them in src/main/resources
+     */
     public static final String[] FILE_NAMES = new String[] {
-        "100.txt",
-        "sceneries.jpg"
+//        "100.txt"
+//        "1000.txt"
+//        "10000.txt"
+//        "100000.txt"
+//        "200.txt"
+//        "500.txt"
+//        "5000.txt"
+//        "50000.txt"
+//        "buggy.txt"
+//        "bytefilelarge"
+//        "bytefilemedium"
+//        "bytefilesmall"
+//        "campus.jpg"
+//        "circus.mp3"
+//        "class-AudioClip.html"
+//        "demo.mov"
+//        "docs.pdf"
+//        "guitar.wav"
+//        "large.txt"
+//        "medium.txt"
+//        "output_cave.wav"
+//        "preprintsample.pdf"
+//        "sceneries.jpg"
+//        "small.txt"
+//        "tenor.gif"
     };
     
+    /*
+     * Change to true if verbose output is needed
+     */
     @Override
     public boolean debug()
     {

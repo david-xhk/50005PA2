@@ -62,13 +62,13 @@ public abstract class SscpConnection
     // Establishes the connection using SSAP and populates keys
     public abstract void establishHandshake() throws IOException;
     
-    Socket getSocket()
+    protected Socket getSocket()
         throws IOException
     {
         return socket;
     }
     
-    String getHostAddress()
+    protected String getHostAddress()
     {
         if (socket == null)
             return null;

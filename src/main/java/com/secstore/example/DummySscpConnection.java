@@ -14,14 +14,51 @@ import com.secstore.sscp.SscpConnection;
 import com.secstore.sscp.SscpProtocol;
 
 
+/*
+ * This class bypasses all authentication protocols SSAP/1.0 and SSAP/2.0.
+ * 
+ * It is for testing SSCP/1.0 and SSCP/2.0 without interference of SSAP.
+ */
 public class DummySscpConnection extends SscpConnection
 {
     public static final String RESOURCES = "src/main/resources";
     public static final String RESULTS = "src/main/results";
+    
+    /* Uncomment the file(s) you want to see transferred
+     *
+     * More files can be added here by saving them in src/main/resources
+     */
     public static final String[] FILE_NAMES = new String[] {
-        "100.txt"
+//        "100.txt"
+//        "1000.txt"
+//        "10000.txt"
+//        "100000.txt"
+//        "200.txt"
+//        "500.txt"
+//        "5000.txt"
+//        "50000.txt"
+//        "buggy.txt"
+//        "bytefilelarge"
+//        "bytefilemedium"
+//        "bytefilesmall"
+//        "campus.jpg"
+//        "circus.mp3"
+//        "class-AudioClip.html"
+//        "demo.mov"
+//        "docs.pdf"
+//        "guitar.wav"
+//        "large.txt"
+//        "medium.txt"
+//        "output_cave.wav"
+//        "preprintsample.pdf"
+//        "sceneries.jpg"
+//        "small.txt"
+//        "tenor.gif"
     };
     
+    /*
+     * Change to true if verbose output is needed
+     */
     @Override
     public boolean debug()
     {
@@ -143,29 +180,29 @@ public class DummySscpConnection extends SscpConnection
     {
         switch (type) {
             case CLIENT:
-                log("Client connecting");
+                Logger.log("Client connecting");
                 
                 connect(new Socket(host, port));
                 
-                log("Client connected");
+                Logger.log("Client connected to: " + getSocket());
                 
                 break;
             
             case SERVER:
-                log("Starting server");
+                Logger.log("Starting server");
                 
                 ServerSocket server = new ServerSocket();
                 
                 server.bind(new InetSocketAddress(host, port));
                 
-                log("Server bound to " + server.getInetAddress());
+                Logger.log("Server bound to: " + server.getInetAddress());
                 
                 try {
-                    log("Server waiting to accept");
+                    Logger.log("Server waiting to accept");
                     
                     Socket socket = server.accept();
                     
-                    log("Connected to: " + socket);
+                    Logger.log("Server connected to: " + socket);
                     
                     connect(socket);
                 }
@@ -177,6 +214,8 @@ public class DummySscpConnection extends SscpConnection
                 finally {
                     try {
                         server.close();
+                        
+                        Logger.log("Server closed");
                     }
                     
                     catch (IOException exception) {
