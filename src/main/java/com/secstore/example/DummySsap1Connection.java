@@ -1,7 +1,7 @@
 package com.secstore.example;
 
-import static com.secstore.Logger.log;
 import java.io.IOException;
+import com.secstore.Logger;
 import com.secstore.ssap.Ssap1_0;
 import com.secstore.ssap.SsapProtocol.SsapProtocolException;
 import com.secstore.sscp.SscpProtocol;
@@ -14,10 +14,10 @@ public class DummySsap1Connection extends DummySscpConnection
         "sceneries.jpg"
     };
     
-    public DummySsap1Connection(String host, int port, Type type)
-        throws IOException
+    @Override
+    public boolean debug()
     {
-        super(host, port, type);
+        return false;
     }
     
     public static void main(String[] args)
@@ -53,7 +53,7 @@ public class DummySsap1Connection extends DummySscpConnection
                     
                     String filePath = RESOURCES + "/" + fileName;
                     
-                    log("Server uploading " + filePath);
+                    Logger.log("Server uploading " + filePath);
                     
                     long start = System.currentTimeMillis();
                     
@@ -61,9 +61,9 @@ public class DummySsap1Connection extends DummySscpConnection
                     
                     long end = System.currentTimeMillis();
                     
-                    log("Server finished uploading " + fileName + "!");
+                    Logger.log("Server finished uploading " + fileName + "!");
                     
-                    log("Time taken: " + (end - start) + " ms");
+                    Logger.log("Time taken: " + (end - start) + " ms");
                     
                     waitNSeconds(3);
                 }
@@ -88,7 +88,7 @@ public class DummySsap1Connection extends DummySscpConnection
                     
                     String filePath = RESULTS + "/" + fileName;
                     
-                    log("Client downloading " + filePath);
+                    Logger.log("Client downloading " + filePath);
                     
                     long start = System.currentTimeMillis();
                     
@@ -96,14 +96,20 @@ public class DummySsap1Connection extends DummySscpConnection
                     
                     long end = System.currentTimeMillis();
                     
-                    log("Client finished downloading " + fileName + "!");
+                    Logger.log("Client finished downloading " + fileName + "!");
                     
-                    log("Time taken: " + (end - start) + " ms");
+                    Logger.log("Time taken: " + (end - start) + " ms");
                     
                     waitNSeconds(3);
                 }
             }
         });
+    }
+    
+    public DummySsap1Connection(String host, int port, Type type)
+        throws IOException
+    {
+        super(host, port, type);
     }
     
     @Override

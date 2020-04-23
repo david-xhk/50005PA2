@@ -1,6 +1,6 @@
 package com.secstore.sscp;
 
-import static com.secstore.Logger.log;
+import static com.secstore.Logger.Loggable;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -12,12 +12,13 @@ import javax.crypto.Cipher;
 
 
 public abstract class SscpConnection
+    implements Loggable
 {
     private static final int TRANSFER_BUFFER_SIZE = 8192;
     
-    private final Key[] keys = new Key[SscpProtocol.LENGTH];
+    private final Key[] keys = new Key[SscpProtocol.PROTOCOLS.length];
     
-    private final Cipher[] ciphers = new Cipher[SscpProtocol.LENGTH];
+    private final Cipher[] ciphers = new Cipher[SscpProtocol.PROTOCOLS.length];
     {
         SscpProtocol[] protocols = SscpProtocol.PROTOCOLS;
         
@@ -26,9 +27,37 @@ public abstract class SscpConnection
     }
     
     private SscpProtocol protocol = SscpProtocol.DEFAULT;
-    private Socket socket;
+    private Socket socket = null;
     private SscpInputStream in;
     private SscpOutputStream out;
+    
+    @Override
+    public boolean debug()
+    {
+        return false;
+    }
+    
+    @Override
+    public void log(String message)
+    {
+        message = "[" + getHostAddress()  + "] [" + protocol + "] " + message;
+        
+        Loggable.super.log(message);
+    }
+    
+    public void connect(Socket socket)
+        throws IOException
+    {
+        this.socket = socket;
+        
+        in = new SscpInputStream(this);
+        
+        in.setProtocol(protocol);
+        
+        out = new SscpOutputStream(this);
+        
+        out.setProtocol(protocol);
+    }
     
     // Establishes the connection using SSAP and populates keys
     public abstract void establishHandshake() throws IOException;
@@ -39,6 +68,14 @@ public abstract class SscpConnection
         return socket;
     }
     
+    String getHostAddress()
+    {
+        if (socket == null)
+            return null;
+        
+        return socket.getInetAddress().getHostAddress();
+    }
+    
     public SscpProtocol getProtocol()
     {
         return protocol;
@@ -46,9 +83,9 @@ public abstract class SscpConnection
     
     public void setProtocol(SscpProtocol protocol)
     {
-        this.protocol = protocol;
+        log("Setting SSCP protocol to: " + protocol);
         
-        log("SET SSCP PROTOCOL: " + protocol);
+        this.protocol = protocol;
         
         in.setProtocol(protocol);
         
@@ -100,16 +137,6 @@ public abstract class SscpConnection
             default:
                 throw new IllegalArgumentException("protocol invalid");
         }
-    }
-    
-    public void connect(Socket socket)
-        throws IOException
-    {
-        this.socket = socket;
-        
-        in = new SscpInputStream(this);
-        
-        out = new SscpOutputStream(this);
     }
     
     private void readUntilEOT(OutputStream outputStream)

@@ -1,6 +1,5 @@
 package com.secstore.example;
 
-import static com.secstore.Logger.log;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -10,6 +9,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.concurrent.TimeUnit;
 import javax.crypto.SecretKey;
+import com.secstore.Logger;
 import com.secstore.sscp.SscpConnection;
 import com.secstore.sscp.SscpProtocol;
 
@@ -21,6 +21,12 @@ public class DummySscpConnection extends SscpConnection
     public static final String[] FILE_NAMES = new String[] {
         "100.txt"
     };
+    
+    @Override
+    public boolean debug()
+    {
+        return false;
+    }
     
     public static void main(String[] args)
         throws IOException
@@ -55,7 +61,7 @@ public class DummySscpConnection extends SscpConnection
                     
                     String filePath = RESOURCES + "/" + fileName;
                     
-                    log("Server uploading " + filePath);
+                    Logger.log("Server uploading " + filePath);
                     
                     long start = System.currentTimeMillis();
                     
@@ -63,9 +69,9 @@ public class DummySscpConnection extends SscpConnection
                     
                     long end = System.currentTimeMillis();
                     
-                    log("Server finished uploading " + fileName + "!");
+                    Logger.log("Server finished uploading " + fileName + "!");
                     
-                    log("Time taken: " + (end - start) + " ms");
+                    Logger.log("Time taken: " + (end - start) + " ms");
                     
                     waitNSeconds(3);
                 }
@@ -90,7 +96,7 @@ public class DummySscpConnection extends SscpConnection
                     
                     String filePath = RESULTS + "/" + fileName;
                     
-                    log("Client downloading " + filePath);
+                    Logger.log("Client downloading " + filePath);
                     
                     long start = System.currentTimeMillis();
                     
@@ -98,9 +104,9 @@ public class DummySscpConnection extends SscpConnection
                     
                     long end = System.currentTimeMillis();
                     
-                    log("Client finished downloading " + fileName + "!");
+                    Logger.log("Client finished downloading " + fileName + "!");
                     
-                    log("Time taken: " + (end - start) + " ms");
+                    Logger.log("Time taken: " + (end - start) + " ms");
                     
                     waitNSeconds(3);
                 }

@@ -1,7 +1,6 @@
 package com.secstore.sscp;
 
-import static com.secstore.Logger.log;
-import java.io.ByteArrayOutputStream;
+import static com.secstore.Logger.Loggable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.security.Key;
@@ -10,6 +9,7 @@ import com.secstore.utils.CryptoUtils;
 
 
 public class SscpOutputStream extends OutputStream
+    implements Loggable
 {
     private SscpConnection connection;
     private final OutputStream outputStream;
@@ -22,6 +22,22 @@ public class SscpOutputStream extends OutputStream
     private Key key;
     private Cipher cipher;
     private int ctr = 1;
+    
+    private static int debug_MaxDataLength = 60;
+    
+    @Override
+    public boolean debug()
+    {
+        return connection.debug();
+    }
+    
+    @Override
+    public void log(String message)
+    {
+        message = "[" + connection.getHostAddress()  + "] [" + protocol + "] [OUT] " + message;
+        
+        Loggable.super.log(message);
+    }
     
     public SscpOutputStream(SscpConnection connection)
         throws IOException
@@ -91,44 +107,20 @@ public class SscpOutputStream extends OutputStream
         if (ptr == 0)
             return;
         
-        switch (protocol) {
-            case SSCP1:
-            case SSCP2:
-                byte[] bytesToEncrypt = new byte[ptr];
-                
-                System.arraycopy(buffer, 0, bytesToEncrypt, 0, ptr);
-                
-                try (ByteArrayOutputStream frame = new ByteArrayOutputStream()) {
-                    byte[] encryptedBytes = encryptBytes(bytesToEncrypt);
-                    
-                    byte[] header = generateHeader(encryptedBytes, false);
-                    
-                    logPacket(header, encryptedBytes.length, encryptedBytes);
-                    
-                    frame.write(header);
-                        
-                    frame.write(encryptedBytes);
-                    
-                    frame.writeTo(outputStream);
-                }
-                
-                break;
-            
-            case DEFAULT:
-            default:
-                outputStream.write(0);
-                
-                outputStream.write(new byte[] {
-                    (byte) (ptr >> 24),
-                    (byte) (ptr >> 16),
-                    (byte) (ptr >> 8),
-                    (byte) (ptr)
-                });
-                
-                outputStream.write(buffer, 0, ptr);
-                
-                break;
-        }
+        byte[] bytes = new byte[ptr];
+        
+        System.arraycopy(buffer, 0, bytes, 0, ptr);
+        
+        if (protocol.isNotDefault())
+            bytes = encryptBytes(bytes);
+        
+        byte[] header = generateHeader(bytes, false);
+        
+        logPacket(header, bytes);
+        
+        outputStream.write(header);
+        
+        outputStream.write(bytes);
         
         spacesLeft += ptr;
         
@@ -144,31 +136,51 @@ public class SscpOutputStream extends OutputStream
         
         flush();
         
-        switch (protocol) {
-            case SSCP1:
-            case SSCP2:
-                byte[] bytes = encryptBytes(SscpProtocol.EOT_MESSAGE);
-                
-                byte[] header = generateHeader(bytes, true);
-                
-                logPacket(header, bytes.length, bytes);
-                
-                outputStream.write(header);
-                
-                outputStream.write(bytes);
-                
-                break;
-            
-            case DEFAULT:
-            default:
-                outputStream.write(SscpProtocol.EOT_BYTE);
-                
-                break;
-        }
+        byte[] bytes = new byte[0];
+        
+        byte[] header = generateHeader(bytes, true);
+        
+        logPacket(header, bytes);
+        
+        outputStream.write(header);
+        
+        outputStream.write(bytes);
         
         outputStream.flush();
         
         ctr = 1;
+    }
+    
+    private final void logPacket(byte[] header, byte[] bytes)
+    {
+        if (!debug())
+            return;
+        
+        StringBuilder builder = new StringBuilder();
+        
+        builder.append("Packet " + (ctr++) + " {");
+        
+        builder.append("header={" + (int) header[0]);
+        
+        for (int i = 1; i < header.length; i++)
+            builder.append(", " + (int) header[i]);
+        
+        builder.append("}, packetSize=" + bytes.length);
+        
+        if (bytes.length > 0) {
+            builder.append(", data=");
+            
+            String data = CryptoUtils.base64Encode(bytes);
+            
+            if (data.length() > debug_MaxDataLength)
+                data = data.substring(0, debug_MaxDataLength - 3) + "...";
+            
+            builder.append(data);
+        }
+        
+        builder.append("}");
+        
+        log(builder.toString());
     }
     
     private final byte[] generateHeader(byte[] bytes, boolean EOT)
@@ -191,18 +203,13 @@ public class SscpOutputStream extends OutputStream
         return new byte[] {(byte) firstByte, (byte) secondByte};
     }
     
-    private final void logPacket(byte[] header, int packetSize, byte[] bytes)
-    {
-        log("[WRITE] Packet " + (ctr++) + " (header={" + (int) header[0] + ", " + (int) header[1] +
-            "}, packetSize=" + packetSize + ", data=" + CryptoUtils.base64Encode(bytes) + ")");
-    }
-    
     private final void initialize()
     {
         switch (protocol) {
             case SSCP1:
             case SSCP2:
                 initializeCipher();
+                // fall through
             
             case DEFAULT:
             default:

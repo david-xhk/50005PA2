@@ -60,4 +60,20 @@ public class Logger
         
         LOGGER.info(logMessage);
     }
+    
+    public static interface Loggable
+    {
+        default boolean debug()
+        {
+            return false;
+        }
+        
+        default void log(String message)
+        {
+            if (!debug())
+                return;
+            
+            Logger.log(message);
+        }
+    }
 }

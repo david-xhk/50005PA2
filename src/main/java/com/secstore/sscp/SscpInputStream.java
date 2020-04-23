@@ -1,14 +1,16 @@
 package com.secstore.sscp;
 
-import static com.secstore.Logger.log;
+import static com.secstore.Logger.Loggable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.Key;
 import javax.crypto.Cipher;
+import com.secstore.Logger.Loggable;
 import com.secstore.utils.CryptoUtils;
 
 
 public class SscpInputStream extends InputStream
+    implements Loggable
 {
     private SscpConnection connection;
     private final InputStream inputStream;
@@ -21,6 +23,22 @@ public class SscpInputStream extends InputStream
     private int bytesLeft;
     private boolean open;
     private int ctr = 1;
+    
+    private static int debug_MaxDataLength = 60;
+    
+    @Override
+    public boolean debug()
+    {
+        return connection.debug();
+    }
+    
+    @Override
+    public void log(String message)
+    {
+        message = "[" + connection.getHostAddress()  + "] [" + protocol + "] [IN] " + message;
+        
+        Loggable.super.log(message);
+    }
     
     public SscpInputStream(SscpConnection connection)
         throws IOException
@@ -138,66 +156,65 @@ public class SscpInputStream extends InputStream
     private final void consumePacket()
         throws IOException
     {
-        switch (protocol) {
-            case SSCP1:
-            case SSCP2:
-                int firstByte = inputStream.read();
-                
-                // version is the first bit of the first byte
-                SscpProtocol protocol = ((firstByte & 0x80) == 0) ? SscpProtocol.SSCP1 : SscpProtocol.SSCP2;
-                
-                if (this.protocol != protocol)
-                    setProtocol(protocol);
-                
-                // EOT is the second bit of the first byte
-                EOT = (((firstByte & 0x40) >> 6) == 1);
-                
-                // packet size is the last 14 bits of the first two bytes
-                int packetSize = (((firstByte & 0x3f) << 8) | inputStream.read());
-                
-                byte[] bytes = new byte[packetSize];
-                
-                int bytesRead = 0;
-                
-                while (bytesRead < packetSize)
-                    bytesRead += inputStream.read(bytes, bytesRead, packetSize - bytesRead);
-                
-                buffer = decryptBytes(bytes);
-                
-                logPacket(packetSize, bytes);
-                
-                break;
-            
-            case DEFAULT:
-            default:
-                if (EOT = (inputStream.read() == SscpProtocol.EOT_BYTE))
-                    return;
-                
-                packetSize = (int) (
-                    (inputStream.read() << 24) |
-                    (inputStream.read() << 16) |
-                    (inputStream.read() << 8)  |
-                    (inputStream.read())
-                );
-                
-                buffer = new byte[packetSize];
-                
-                bytesRead = 0;
-                
-                while (bytesRead < packetSize)
-                    bytesRead += inputStream.read(buffer, bytesRead, packetSize - bytesRead);
-        }
+        int firstByte = inputStream.read();
+        
+        // version is the first bit of the first byte
+        SscpProtocol protocol = ((firstByte & 0x80) == 0) ? SscpProtocol.SSCP1 : SscpProtocol.SSCP2;
+        
+        if (this.protocol != protocol && this.protocol.isNotDefault())
+            setProtocol(protocol);
+        
+        // EOT is the second bit of the first byte
+        EOT = (((firstByte & 0x40) >> 6) == 1);
+        
+        // packet size is the last 14 bits of the first two bytes
+        int packetSize = (((firstByte & 0x3f) << 8) | inputStream.read());
+        
+        byte[] bytes = new byte[packetSize];
+        
+        int bytesRead = 0;
+        
+        while (bytesRead < packetSize)
+            bytesRead += inputStream.read(bytes, bytesRead, packetSize - bytesRead);
+        
+        if (this.protocol.isNotDefault())
+            bytes = decryptBytes(bytes);
+        
+        logPacket(bytes);
+        
+        buffer = bytes;
         
         bytesLeft = buffer.length;
         
         ptr = 0;
     }
     
-    
-    private final void logPacket(int packetSize, byte[] bytes)
+    private final void logPacket(byte[] packet)
     {
-        log("[READ] Packet " + (ctr++) + " (protocol=" + protocol + ", EOT=" + EOT +
-            ", packetSize=" + packetSize + ", data=" + CryptoUtils.base64Encode(bytes) + ")");
+        if (!debug())
+            return;
+        
+        StringBuilder builder = new StringBuilder();
+        
+        builder.append("Packet " + (ctr++) + " {");
+        
+        builder.append("EOT=" + EOT + ", ");
+        
+        builder.append("packetSize=" + packet.length);
+        
+        if (packet.length > 0) {
+            builder.append(", data=");
+            
+            String data = CryptoUtils.base64Encode(packet);
+            
+            if (data.length() > debug_MaxDataLength)
+                data = data.substring(0, debug_MaxDataLength - 3) + "...";
+            
+            builder.append(data);
+        }
+        builder.append("}");
+        
+        log(builder.toString());
     }
     
     private final void initializeCipher()
@@ -211,6 +228,9 @@ public class SscpInputStream extends InputStream
     
     private final byte[] decryptBytes(byte[] bytes)
     {
+        if (bytes.length == 0)
+            return bytes;
+        
         initializeCipher();
         
         return CryptoUtils.decryptBytes(cipher, bytes);
@@ -258,3 +278,4 @@ public class SscpInputStream extends InputStream
         return false;
     }
 }
+

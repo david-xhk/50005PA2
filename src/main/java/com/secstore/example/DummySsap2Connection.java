@@ -1,7 +1,7 @@
 package com.secstore.example;
 
-import static com.secstore.Logger.log;
 import java.io.IOException;
+import com.secstore.Logger;
 import com.secstore.ssap.Ssap2_0;
 import com.secstore.ssap.SsapProtocol.SsapProtocolException;
 import com.secstore.sscp.SscpProtocol;
@@ -10,8 +10,8 @@ import com.secstore.sscp.SscpProtocol;
 public class DummySsap2Connection extends DummySsap1Connection
 {
     public static final String[] FILE_NAMES = new String[] {
-        "Video.mp4"
-//        "sceneries.jpg"
+//        "Video.mp4",
+        "sceneries.jpg"
 //        "1000.txt",
 //        "10000.txt",
 //        "100000.txt",
@@ -22,10 +22,10 @@ public class DummySsap2Connection extends DummySsap1Connection
 //        "buggy.txt",
     };
     
-    public DummySsap2Connection(String host, int port, Type type)
-        throws IOException
+    @Override
+    public boolean debug()
     {
-        super(host, port, type);
+        return false;
     }
     
     public static void main(String[] args)
@@ -65,7 +65,7 @@ public class DummySsap2Connection extends DummySsap1Connection
                     
                     String filePath = RESOURCES + "/" + fileName;
                     
-                    log("Server uploading " + filePath);
+                    Logger.log("Server uploading " + filePath);
                     
                     long start = System.currentTimeMillis();
                     
@@ -73,9 +73,9 @@ public class DummySsap2Connection extends DummySsap1Connection
                     
                     long end = System.currentTimeMillis();
                     
-                    log("Server finished uploading " + fileName + "!");
+                    Logger.log("Server finished uploading " + fileName + "!");
                     
-                    log("Time taken: " + (end - start) + " ms");
+                    Logger.log("Time taken: " + (end - start) + " ms");
                     
                     waitNSeconds(3);
                 }
@@ -104,7 +104,7 @@ public class DummySsap2Connection extends DummySsap1Connection
                     
                     String filePath = RESULTS + "/" + fileName;
                     
-                    log("Client downloading " + filePath);
+                    Logger.log("Client downloading " + filePath);
                     
                     long start = System.currentTimeMillis();
                     
@@ -112,9 +112,9 @@ public class DummySsap2Connection extends DummySsap1Connection
                     
                     long end = System.currentTimeMillis();
                     
-                    log("Client finished downloading " + fileName + "!");
+                    Logger.log("Client finished downloading " + fileName + "!");
                     
-                    log("Time taken: " + (end - start) + " ms");
+                    Logger.log("Time taken: " + (end - start) + " ms");
                     
                     waitNSeconds(3);
                 }
@@ -140,5 +140,11 @@ public class DummySsap2Connection extends DummySsap1Connection
         catch (SsapProtocolException exception) {
             throw new IllegalStateException("ssap/2.0 handshake failed: " + exception);
         }
+    }
+    
+    public DummySsap2Connection(String host, int port, Type type)
+        throws IOException
+    {
+        super(host, port, type);
     }
 }

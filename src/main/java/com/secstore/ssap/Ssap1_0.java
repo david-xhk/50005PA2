@@ -1,89 +1,147 @@
 package com.secstore.ssap;
 
-import static com.secstore.Logger.log;
 import static com.secstore.utils.CryptoUtils.generateCertificate;
+import static com.secstore.utils.CryptoUtils.base64Encode;
 import java.io.IOException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Scanner;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.crypto.Cipher;
 import com.secstore.sscp.SscpConnection;
 import com.secstore.sscp.SscpProtocol;
 
 
-public class Ssap1_0 extends SsapProtocol
+public interface Ssap1_0 extends SsapProtocol
 {
-    public static final String OPENING_HANDSHAKE;
-    public static final String CLOSING_HANDSHAKE;
+    public static SscpProtocol REQUIRED_PROTOCOL = SscpProtocol.DEFAULT;
+    public static int NONCE_LENGTH = 64;
     
-    static {
+    public static String generateNonce()
+    {
+        byte[] nonce = new byte[NONCE_LENGTH];
+        
+        ThreadLocalRandom.current().nextBytes(nonce);
+        
+        return base64Encode(nonce);
+    }
+    
+    public static String newOpeningHandshake(String nonce)
+    {
         StringBuilder builder = new StringBuilder();
         
         builder.append("GET HTTP/1.1" + NEWLINE);
         builder.append("Upgrade: SSTP/1.0" + NEWLINE);
-        builder.append("Connection: Upgrade" + NEWLINE + NEWLINE);
+        builder.append("Connection: Upgrade" + NEWLINE);
+        builder.append("Nonce: " + nonce + NEWLINE + NEWLINE);
         
-        OPENING_HANDSHAKE = builder.toString();
-        
-        builder = new StringBuilder();
+        return builder.toString();
+    }
+    
+    public static String newClosingHandshake(String encryptedNonce)
+    {
+        StringBuilder builder = new StringBuilder();
         
         builder.append("HTTP/1.1 101 Switching Protocols" + NEWLINE);
         builder.append("Upgrade: SSTP/1.0" + NEWLINE);
-        builder.append("Connection: Upgrade" + NEWLINE + NEWLINE);
+        builder.append("Connection: Upgrade" + NEWLINE);
+        builder.append("Encrypted-Nonce: " + encryptedNonce + NEWLINE + NEWLINE);
         builder.append(SECSTORE_CERT_STRING + NEWLINE + NEWLINE);
         
-        CLOSING_HANDSHAKE = builder.toString();
+        return builder.toString();
     }
     
     public static void doOpeningHandShake(SscpConnection connection)
         throws IOException, SsapProtocolException
     {
-        log("STARTING SSAP/1.0 OPENING HANDSHAKE");
+        connection.log("[SSAP/1.0] Starting Opening Handshake");
         
         SscpProtocol originalProtocol = connection.getProtocol();
         
-        connection.setProtocol(SscpProtocol.DEFAULT);
+        if (originalProtocol != null && originalProtocol == REQUIRED_PROTOCOL)
+            originalProtocol = null;
         
-        log("SENDING SSAP/1.0 OPENING HANDSHAKE");
+        else {
+            connection.log("[SSAP/1.0] [OPENING] Changing connection protocol");
+            
+            connection.setProtocol(REQUIRED_PROTOCOL);
+        }
         
-        connection.writeString(OPENING_HANDSHAKE);
+        String nonce = generateNonce();
+        
+        connection.log("[SSAP/1.0] [OPENING] Generated nonce: " + nonce);
+        
+        String openingHandshake = newOpeningHandshake(nonce);
+        
+        connection.log("[SSAP/1.0] [OPENING] Sending opening handshake");
+        
+        connection.writeString(openingHandshake);
+        
+        connection.log("[SSAP/1.0] [OPENING] Waiting for closing handshake");
         
         String response = connection.readString();
         
-        log("GOT SSAP/1.0 CLOSING HANDSHAKE: \n" + response);
+        connection.log("[SSAP/1.0] [OPENING] Got closing handshake: \n" + response);
         
-        String serverCertString = null;
+        String encryptedNonce;
+        
+        String secStoreCertString;
+        
+        connection.log ("[SSAP/1.0] [OPENING] Parsing closing handshake");
         
         try (Scanner scanner = new Scanner(response)) {
             String data = scanner.useDelimiter(NEWLINE + NEWLINE).next();
             
+            connection.log("[SSAP/1.0] [OPENING] Checking upgrade protocol");
+            
             Matcher matcher = Pattern.compile("Upgrade: (.*)").matcher(data);
             
-            assert (!matcher.find() || !SSTP.equals(matcher.group(1)));
+            if (!matcher.find())
+                throw new SsapProtocolException("upgrade protocol missing");
             
-            serverCertString = scanner.useDelimiter(NEWLINE + NEWLINE).next();
+            else if (!SSTP.equals(matcher.group(1)))
+                throw new SsapProtocolException("invalid upgrade protocol");
+            
+            connection.log("[SSAP/1.0] [OPENING] Getting encrypted nonce");
+            
+            matcher = Pattern.compile("Encrypted-Nonce: (.*)").matcher(data);
+            
+            if (matcher.find())
+                encryptedNonce = matcher.group(1);
+            
+            else
+                throw new SsapProtocolException("encrypted nonce not found");
+            
+            connection.log("[SSAP/1.0] [OPENING] Got encrypted nonce: " + encryptedNonce);
+            
+            connection.log("[SSAP/1.0] [OPENING] Getting SecStore certificate");
+            
+            secStoreCertString = scanner.useDelimiter(NEWLINE + NEWLINE).next();
+            
+            if (secStoreCertString == null)
+                throw new SsapProtocolException("certificate not found");
         }
         
-        if (serverCertString == null)
-            throw new SsapProtocolException("certificate not found");
+        connection.log("[SSAP/1.0] [OPENING] Generating SecStore certificate");
         
-        log("GENERATING SECSTORE CERTIFICATE");
+        X509Certificate secStoreCert = generateCertificate(secStoreCertString);
         
-        X509Certificate serverCert = generateCertificate(serverCertString);
-        
-        log("VERIFYING SECSTORE CERTIFICATE");
+        connection.log("[SSAP/1.0] [OPENING] Verifying SecStore certificate");
         
         try {
-            serverCert.checkValidity();
+            secStoreCert.checkValidity();
             
-            serverCert.verify(CA_CERT.getPublicKey());
+            secStoreCert.verify(CA_CERT.getPublicKey());
             
-            log("SECSTORE CERTIFICATE ACCEPTED");
+            connection.log("[SSAP/1.0] [OPENING] SecStore certificate verified");
         }
         
         catch (CertificateException exception) {
@@ -97,47 +155,109 @@ public class Ssap1_0 extends SsapProtocol
             throw new SsapProtocolException("verification exception: " + exception);
         }
         
-        log("SETTING SSAP/1.0 KEY");
+        connection.log("[SSAP/1.0] [OPENING] Decrypting encrypted nonce");
         
-        connection.setKey(SscpProtocol.SSCP1, serverCert.getPublicKey());
+        PublicKey key = secStoreCert.getPublicKey();
         
-        connection.setProtocol(originalProtocol);
+        Cipher cipher = connection.getCipher(SscpProtocol.SSCP1);
         
-        log("SSAP/1.0 OPENING HANDSHAKE COMPLETED");
+        String decryptedNonce = SsapProtocol.decodeDecryptThenEncode(cipher, key, encryptedNonce);
+        
+        connection.log("[SSAP/1.0] [OPENING] Got decrypted nonce: " + decryptedNonce);
+        
+        if (!decryptedNonce.equals(nonce))
+            throw new SsapProtocolException("encrypted nonce invalid");
+        
+        connection.log("[SSAP/1.0] [OPENING] Nonce accepted");
+        
+        connection.log("[SSAP/1.0] [OPENING] Setting keys");
+        
+        connection.setKey(SscpProtocol.SSCP1, key);
+        
+        if (originalProtocol != null) {
+            connection.log("[SSAP/1.0] [OPENING] Restoring original protocol");
+            
+            connection.setProtocol(originalProtocol);
+        }
+        
+        connection.log("[SSAP/1.0] [OPENING] Handshake Complete");
     }
     
     public static void doClosingHandShake(SscpConnection connection)
         throws IOException, SsapProtocolException
     {
-        log("STARTING SSAP/1.0 CLOSING HANDSHAKE");
+        connection.log("[SSAP/1.0] Starting Closing Handshake");
         
         SscpProtocol originalProtocol = connection.getProtocol();
         
-        connection.setProtocol(SscpProtocol.DEFAULT);
+        if (originalProtocol != null && originalProtocol == REQUIRED_PROTOCOL)
+            originalProtocol = null;
+        
+        else {
+            connection.log("[SSAP/1.0] [CLOSING] Changing connection protocol");
+            
+            connection.setProtocol(REQUIRED_PROTOCOL);
+        }
+        
+        connection.log("[SSAP/1.0] [CLOSING] Waiting for opening handshake");
         
         String openingHandshake = connection.readString();
         
-        log("GOT SSAP/1.0 OPENING HANDSHAKE: \n" + openingHandshake);
+        connection.log("[SSAP/1.0] [CLOSING] Got opening handshake: \n" + openingHandshake);
+        
+        String nonce;
+        
+        connection.log("[SSAP/1.0] [CLOSING] Parsing opening handshake");
         
         try (Scanner scanner = new Scanner(openingHandshake)) {
             String data = scanner.useDelimiter(NEWLINE + NEWLINE).next();
+            
+            connection.log("[SSAP/1.0] [CLOSING] Checking upgrade protocol");
             
             Matcher matcher = Pattern.compile("Upgrade: (.*)").matcher(data);
             
             if (!matcher.find() || !SSTP.equals(matcher.group(1)))
                 throw new SsapProtocolException("protocol not supported");
+            
+            connection.log("[SSAP/1.0] [CLOSING] Getting nonce");
+            
+            matcher = Pattern.compile("Nonce: (.*)").matcher(data);
+            
+            if (matcher.find())
+                nonce = matcher.group(1);
+            
+            else
+                throw new SsapProtocolException("encrypted nonce not found");
+            
+            connection.log("[SSAP/1.0] [CLOSING] Got nonce: " + nonce);
         }
         
-        log("WRITING SSAP/1.0 CLOSING HANDSHAKE");
+        connection.log("[SSAP/1.0] [CLOSING] Encrypting nonce");
         
-        connection.writeString(CLOSING_HANDSHAKE);
+        PrivateKey key = SECSTORE_PRIVATE_KEY;
         
-        log("SETTING SSAP/1.0 KEY");
+        Cipher cipher = connection.getCipher(SscpProtocol.SSCP1);
         
-        connection.setKey(SscpProtocol.SSCP1, SECSTORE_PRIVATE_KEY);
+        String encryptedNonce = SsapProtocol.decodeEncryptThenEncode(cipher, key, nonce);
         
-        connection.setProtocol(originalProtocol);
+        connection.log("[SSAP/1.0] [CLOSING] Got encrypted nonce: " + encryptedNonce);
         
-        log("SSAP/1.0 CLOSING HANDSHAKE COMPLETED");
+        connection.log("[SSAP/1.0] [CLOSING] Sending closing handshake");
+        
+        String closingHandshake = newClosingHandshake(encryptedNonce);
+        
+        connection.writeString(closingHandshake);
+        
+        connection.log("[SSAP/1.0] [CLOSING] Setting keys");
+        
+        connection.setKey(SscpProtocol.SSCP1, key);
+        
+        if (originalProtocol != null) {
+            connection.log("[SSAP/1.0] [CLOSING] Restoring original protocol");
+            
+            connection.setProtocol(originalProtocol);
+        }
+        
+        connection.log("[SSAP/1.0] [CLOSING] Handshake Complete");
     }
 }
