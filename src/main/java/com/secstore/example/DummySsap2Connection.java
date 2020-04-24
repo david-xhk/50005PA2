@@ -62,6 +62,9 @@ public class DummySsap2Connection extends DummySsap1Connection
         
         String[] fileNames = (args.length > 0) ? args : FILE_NAMES;
         
+        // Change protocol to SscpProtocol.DEFAULT to send the files unencrypted
+        // Change protocol to SscpProtocol.SSCP1 to send the files using SSCP1 (encryption with SecStore's public key)
+        // Change protocol to SscpProtocol.SSCP2 to send the files using SSCP2 (encryption with a symmetric key)
         SscpProtocol protocol = SscpProtocol.SSCP2;
         
         DummySsap2Connection server = new DummySsap2Connection(host, port, Type.SERVER);

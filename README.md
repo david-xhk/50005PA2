@@ -14,13 +14,18 @@ The three features of `SecStore` are:
 
 ## Demo
 
-Please import the code into a suitable IDE and run `com.secstore.example.DummySsap2Connection`.
+Please import the code into a suitable IDE and run [`com.secstore.example.DummySsap2Connection`][ssap2]
+
+There are comments in the file which will explain how to use the program.
 
 ## Report
 
 Our report can be found at this [link][report].
 
+[ssap2]: https://github.com/han-keong/50005PA2/blob/master/src/main/java/com/secstore/example/DummySsap2Connection.java
 [report]: https://docs.google.com/document/d/1ykuO-eOv5egwfzoJTe52nz_uDZWsFLYv4PjtoPILi-U/edit?usp=sharing
+
+
 
 
 
