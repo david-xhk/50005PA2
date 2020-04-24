@@ -14,7 +14,16 @@ The three features of `SecStore` are:
 
 ## Demo
 
-Please import the code into a suitable IDE and run `com.secstore.example.DummySsap2Connection`. More instructions are provided within.
+Please import the code into a suitable IDE and run `com.secstore.example.DummySsap2Connection`.
+
+## Report
+
+Our report can be found at this [link][report].
+
+[report]: https://docs.google.com/document/d/1ykuO-eOv5egwfzoJTe52nz_uDZWsFLYv4PjtoPILi-U/edit?usp=sharing
+
+
+
 
 
 
