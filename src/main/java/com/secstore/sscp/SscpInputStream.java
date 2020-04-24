@@ -200,7 +200,7 @@ public class SscpInputStream extends InputStream
         
         builder.append("EOT=" + EOT + ", ");
         
-        builder.append("packetSize=" + packet.length);
+        builder.append("packet_size=" + packet.length);
         
         if (packet.length > 0) {
             builder.append(", data=");

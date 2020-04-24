@@ -165,7 +165,7 @@ public class SscpOutputStream extends OutputStream
         for (int i = 1; i < header.length; i++)
             builder.append(", " + (int) header[i]);
         
-        builder.append("}, packetSize=" + bytes.length);
+        builder.append("}, packet_size=" + bytes.length);
         
         if (bytes.length > 0) {
             builder.append(", data=");

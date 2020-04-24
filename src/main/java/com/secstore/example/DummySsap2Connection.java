@@ -25,7 +25,7 @@ public class DummySsap2Connection extends DummySsap1Connection
 //        "500.txt"
 //        "5000.txt"
 //        "50000.txt"
-        "buggy.txt"
+//        "buggy.txt"
 //        "bytefilelarge"
 //        "bytefilemedium"
 //        "bytefilesmall"
@@ -50,7 +50,7 @@ public class DummySsap2Connection extends DummySsap1Connection
     @Override
     public boolean debug()
     {
-        return false;
+        return true;
     }
     
     public static void main(String[] args)

@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.security.Key;
@@ -139,22 +140,11 @@ public abstract class SscpConnection
         }
     }
     
-    private void readUntilEOT(OutputStream outputStream)
-        throws IOException
-    {
-        byte[] buffer = new byte[TRANSFER_BUFFER_SIZE];
-        
-        int bytesRead;
-        
-        while ((bytesRead = in.read(buffer, 0, TRANSFER_BUFFER_SIZE)) != -1)
-            outputStream.write(buffer, 0, bytesRead);
-    }
-    
     public String readString()
         throws IOException
     {
         try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-            readUntilEOT(byteArrayOutputStream);
+            transferTo(in, byteArrayOutputStream);
             
             return byteArrayOutputStream.toString(SscpProtocol.CHARSET);
         }
@@ -164,7 +154,7 @@ public abstract class SscpConnection
         throws IOException
     {
         try (FileOutputStream fileOutputStream = new FileOutputStream(fileName)) {
-            readUntilEOT(fileOutputStream);
+            transferTo(in, fileOutputStream);
         }
     }
     
@@ -179,15 +169,21 @@ public abstract class SscpConnection
     public void uploadFrom(String fileName)
         throws IOException
     {
+        try (FileInputStream dataInputStream = new FileInputStream(fileName)) {
+            transferTo(dataInputStream, out);
+        }
+        
+        out.writeEOT();
+    }
+    
+    private static final void transferTo(InputStream inputStream, OutputStream outputStream)
+        throws IOException
+    {
         byte[] buffer = new byte[TRANSFER_BUFFER_SIZE];
         
         int bytesRead;
         
-        try (FileInputStream dataInputStream = new FileInputStream(fileName)) {
-            while ((bytesRead = dataInputStream.read(buffer, 0, TRANSFER_BUFFER_SIZE)) > 0)
-                out.write(buffer, 0, bytesRead);
-        }
-        
-        out.writeEOT();
+        while ((bytesRead = inputStream.read(buffer, 0, TRANSFER_BUFFER_SIZE)) != -1)
+            outputStream.write(buffer, 0, bytesRead);
     }
 }
